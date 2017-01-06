@@ -1,0 +1,398 @@
+//if you run it on Viso Studio, you need import some nessary lib, on Codeblocks, it run without err
+
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <vector>
+#include <map>
+#include <cmath>
+#include <bitset>
+#include <algorithm>
+#include <iomanip>
+
+using namespace std;
+
+const double minSupport=0.2,minConfidence=0.8;  //set up minimum support and minimum confidence
+vector<string> AssRuleVec;     //for saving rules that match minConfidence
+map<string,int> count_items;   //count number of each data set
+
+vector<string> ItemMerge(vector<string> vect1,vector<string> vect2,int round)  //if there is only one item is diff, merge them as a candidate
+{
+    //drop non-freq superset
+    int num_sameItems=0;     //count number of same items in two diff vetor
+    vector<string> vect;
+    map<string,int> tempSaveMap;   //traversing map to check duplicated item
+    for(vector<string>::size_type size_itmes=0; size_itmes<vect1.size(); size_itmes++)
+    {
+        tempSaveMap[vect1[size_itmes]]++;
+        vect.push_back(vect1[size_itmes]);
+    }
+    for(vector<vector<string> >::size_type size_itmes=0; size_itmes<vect2.size(); size_itmes++) //move all items into vect2
+    {
+        tempSaveMap[vect2[size_itmes]]++;
+        if(tempSaveMap[vect2[size_itmes]]==2)  //if there are two same items
+        {
+            num_sameItems++;
+        }
+        else
+        {
+            vect.push_back(vect2[size_itmes]);
+        }
+    }
+    if((num_sameItems+1)!=round)       //if there is only one diff in  two items, others are same,like:1 2 4 and 1 2 3
+    {
+        vect.clear();
+    }
+    return vect;
+}
+
+
+int checkExist(vector<string> item,vector<vector<string> >itemSet)  //if an item is contained in a candidate itemsst,return 1
+{
+
+    int count_same;   //number of same
+    if(!itemSet.empty())
+    {
+        for(vector<vector<string> >::size_type item_sizeA=0; item_sizeA!=itemSet.size(); item_sizeA++)
+        {
+            count_same=0;
+            for(vector<string>::size_type item_sizeB=0; item_sizeB!=itemSet[item_sizeA].size(); item_sizeB++)
+            {
+                for(vector<string>::size_type item_sizeC=0; item_sizeC!=item.size(); item_sizeC++)
+                {
+                    if(item[item_sizeC]==itemSet[item_sizeA].at(item_sizeB))
+                    {
+                        count_same++;
+                    }
+                }
+            }
+            if(count_same==item.size())     //if exist
+            {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+
+void ConfidenceCompute(vector<string> vec,int round)            //calculate confidence
+{
+    int i=1;
+    unsigned long u=1;
+    int j;
+    string tempSavestr;
+    vector<string> realsubset;   //vector for non-null real subset
+    int upper=(int)pow(2,round)-1;   //upper for loop
+    char str[100];
+    vector<string>::size_type st;
+    while(i<upper)
+    {
+        bitset<10> bitvec(u);         //vector fpr real subset for association rules conf
+        for(j=0; j<round; j++)
+        {
+            if(bitvec[j])    //==1
+            {
+                tempSavestr+=vec[j];   //strings to be a subset
+            }
+        }
+        //cout<<"  "<<tempSavestr<<" round="<<round;
+        realsubset.push_back(tempSavestr);   //insert into non-null real subset
+        tempSavestr.erase();
+        u++;
+        i++;
+    }
+    //calculate conf of non-null real subset, like: I1=>I2I3
+
+    for(i=0; i<realsubset.size(); i++)
+    {
+        for(j=0; j<realsubset.size(); j++)
+        {
+            if(i!=j&&realsubset[i].find(realsubset[j])==string::npos&&realsubset[j].find(realsubset[i])==string::npos)
+
+            {
+                if((float)(count_items[realsubset[i]+realsubset[j]])/(float)(count_items[realsubset[i]])>minConfidence||fabs((float)(count_items[realsubset[i]+realsubset[j]])/(float)(count_items[realsubset[i]])-minConfidence)<1.0e-7)   //A=>B conf > minConfidence
+
+                {
+                    cout.setf(ios::fixed);
+                    cout<<realsubset[i]<<"=>"<<realsubset[j]<<"<"<<setprecision(6)<<(float)(count_items[realsubset[i]+realsubset[j]])/(float)(count_items[realsubset[i]])<<"> ";
+                    tempSavestr="{"+realsubset[i]+"}=>{"+realsubset[j]+"} confidence is :";
+                    sprintf(str,"%f",(float)(count_items[realsubset[i]+realsubset[j]])/(float)(count_items[realsubset[i]]));
+                    string tempSavestr2(str);
+                    tempSavestr+=tempSavestr2;
+                    for(st=0; st<AssRuleVec.size(); st++)    //check dupli for association rules
+                    {
+                        if(AssRuleVec[st]==tempSavestr)
+                            break;
+                    }
+                    if(st==AssRuleVec.size())     //non-duplicate, insert into asso rules
+                    {
+                        AssRuleVec.push_back(tempSavestr);
+                    }
+                    tempSavestr.erase();
+                }
+            }
+        }
+    }
+    cout<<endl;
+}
+
+int main()
+{
+
+    vector<vector<string> > origDataVec;        //original data item
+    vector<vector<string> > candidateVec;   //candidate data item
+    vector<vector<string> > freqVec;   //frequency data item
+    vector<map<string,int> > bitmap;     //if item is in this set,return 1, ortherwise return 0
+    long OrigNumCount=0;   //total number of original data
+    ifstream file("E:\\634\\mid\\data1.txt");   //read data set
+    ofstream outfile("E:\\634\\mid\\output.txt");   //print out associate rules
+    if(!file)        //check whether the file open successfully
+    {
+        cout<<" file cannot open!"<<endl;
+        return 1;
+    }
+    else
+    {
+        string tempSave;
+        vector<string> item;   //data items' temporary vector
+        cout<<"The original data:"<<endl;
+        int begin;
+        int end;
+        while(getline(file,tempSave))     //read data line by line
+        {
+            OrigNumCount++;
+            begin=0;
+            tempSave.erase(0,tempSave.find_first_not_of("\r\t\n "));   //remove space if there is.. before
+            tempSave.erase(tempSave.find_last_not_of("\r\t\n")+1);        //remove if there is.. after
+
+            while((end=tempSave.find(' ',begin))!=string::npos)    //items are separated by space
+            {
+                item.push_back(tempSave.substr(begin,end-begin));   //insert into items
+                begin=end+1;
+            }
+            item.push_back(tempSave.substr(begin));     //the last one in one set
+            origDataVec.push_back(item);       //insert all items in one set as whole into a vector
+            item.clear();   //clear item
+            cout<<tempSave<<endl;
+        }
+        cout<<"Please press Enter to continue the processing "<<endl;  //pause
+        getchar();
+        map<string,int> item_map;
+        for(vector<vector<string> >::size_type itemA=0; itemA!=origDataVec.size(); ++itemA)
+        {
+            for(vector<string>::size_type itemB=0; itemB!=origDataVec[itemA].size(); ++itemB)
+            {
+                count_items[origDataVec[itemA].at(itemB)]++;    //count... add 1
+                item_map[origDataVec[itemA].at(itemB)]=1;       //if this item exist in this set, return 1, otherwise 0
+            }
+            bitmap.push_back(item_map);
+            item_map.clear();      //clear again, in case of count duplicated
+        }
+        map<string,int>::const_iterator map_items=count_items.begin();
+        cout<<"candidate item set 1: "<<endl;
+        while(map_items!=count_items.end())
+        {
+            cout<<"{"<<map_items->first<<"}"<<endl;
+            map_items++;
+        }
+        cout<<"Please press Enter to continue the processing "<<endl;  //system pause
+        getchar();
+        map_items=count_items.begin();
+        cout<<"frequency item set 1: "<<endl;
+        while(map_items!=count_items.end())
+        {
+            if(((float)map_items->second/(float)OrigNumCount)>minSupport || fabs(((float)map_items->second/(float)OrigNumCount)-minSupport)<1.0e-7)    //support > 0.2
+            {
+                cout.setf(ios::fixed);
+                cout<<"{ "<<map_items->first<<" }"<<" support is : "<<setprecision(6)<<(float)map_items->second/(float)OrigNumCount<<endl;
+                item.push_back(map_items->first);
+                freqVec.push_back(item);   //insert into the vector of candidate data set
+                item.clear();
+            }
+            map_items++;
+        }
+        if(!freqVec.empty())   //if frequency data set 1 is null, exit
+        {
+            cout<<"Please press Enter to continue the processing "<<endl;  //pause
+            getchar();
+            int round=1;     //count round number
+            int found;    //if 1 means include non-frequency , so do not consider any superset...like:I1I4 is non-freq, no consider I1I2I4
+            string tempSavestr;
+            vector<string> tempSavevec;
+            do
+            {
+                //next round candidate
+                vector<vector<string> >::size_type st=freqVec.size();
+                candidateVec.clear();         //clear previous
+                for(vector<vector<string> >::size_type st1=0; st1<st; st1++)
+                {
+                    for(vector<vector<string> >::size_type st2=st1+1; st2<st; st2++)
+                    {
+                        found=0;
+                        item=ItemMerge(freqVec[st1],freqVec[st2],round);
+                        if(!item.empty()&&!checkExist(item,candidateVec))   //if vector is non-null & data set have not yet exist, set will be as candidate insert into vector
+                        {
+                            //drop superset which include non-freq//
+                            string teststr;
+                            int testint;
+                            tempSavevec=item;
+                            sort(tempSavevec.begin(),tempSavevec.end());
+                            while(next_permutation(tempSavevec.begin(),tempSavevec.end()))   //search all sets, like I1I2I4,I1I4I2,I2I1I4,
+                            {
+                                for(vector<string>::size_type tempSavest=0; tempSavest!=tempSavevec.size(); tempSavest++) //find string sets
+                                {
+                                    tempSavestr+=tempSavevec[tempSavest];
+                                }
+                                for(map<string,int>::const_iterator tempSaveit=count_items.begin(); tempSaveit!=count_items.end(); tempSaveit++)
+                                {
+                                    if(((float)(tempSaveit->second)/(float)OrigNumCount)<minSupport)  //non-freq
+                                    {
+                                        if(tempSavestr.find(tempSaveit->first)!=string::npos)   //superset include non-freq
+                                        {
+                                            found=1;
+                                            teststr=tempSaveit->first;
+                                            testint=tempSaveit->second;
+                                            break;
+                                        }
+                                    }
+                                }
+                                tempSavestr.erase();
+                                if(found)   //there is non-freq
+                                {
+                                    break;
+                                }
+
+                            }
+                            if(!found)     //no non-freq
+                                candidateVec.push_back(item);
+                            else
+                            {
+                                cout<<"Drop non-freqency items: "<<endl;
+                                for(vector<string>::size_type st2=0; st2!=item.size(); st2++)
+                                    cout<<item[st2];
+                                cout<<" The non-freqency items: "<<teststr<<" "<<testint<<"/"<<OrigNumCount<<"="<<((float)(testint)/(float)OrigNumCount)<<endl;
+                                cout<<endl;
+                            }
+                            found=0;   //reset
+                        }
+
+                    }
+                }
+                freqVec.clear();         //clear ferq items
+                round++;
+                cout<<"Candidate"<<round<<"item sets are:"<<endl;
+                for(vector<vector<string> >::size_type itemA=0; itemA!=candidateVec.size(); ++itemA)    //print out candidate sets
+                {
+                    cout<<"{";
+                    for(vector<string>::size_type itemB=0; itemB!=candidateVec[itemA].size(); ++itemB)
+                    {
+                        cout<<candidateVec[itemA].at(itemB);
+                    }
+                    cout<<"}"<<endl;
+                }
+                if(candidateVec.empty())  //if candidate set is null
+                {
+                    cout<<"Candidate "<<round<<" item set is null"<<endl;
+                }
+                int flag;    //if the item exists in one item, return 1,otherwise 0. like: {I1I2}
+                int count;   //count how many times one item exists in whole transaction
+                string tempSavestr;   //use tempSaveorary string to store each item as one string,like I1 I2  I3 as "I1I2I3"
+                int mark;    //avoid duplication of storing string
+                for(vector<vector<string> >::size_type sx=0; sx!=candidateVec.size(); ++sx)    //expanding next round freq item sets
+                {
+                    mark=1;
+                    count=0;
+                    for(vector<map<string,int> >::size_type sy=0; sy!=bitmap.size(); ++sy)
+                    {
+                        flag=1;
+                        for(vector<string>::size_type sz=0; sz!=candidateVec[sx].size(); ++sz)
+                        {
+                            if(bitmap[sy][candidateVec[sx].at(sz)]==0)   //if some one item never show up
+                            {
+                                flag=0;
+                            }
+                            if(mark==1)
+                            {
+                                tempSavestr+=candidateVec[sx].at(sz);
+                            }
+                        }
+
+                        if(flag)  //still 1, if show up, add 1
+                        {
+                            count++;
+                        }
+                        mark++;
+                    }
+                    if(((float)count/(float)OrigNumCount)>minSupport||fabs(((float)count/(float)OrigNumCount)-minSupport)<1.0e-7)   //support > 0.2
+                    {
+                        freqVec.push_back(candidateVec[sx]);
+                    }
+                    count_items[tempSavestr]=count;
+                    //if tempSave string is I1I2I3,we need definite I2I1I3,I1I3I2 etc. have the same value in one item count
+                    sort(candidateVec[sx].begin(),candidateVec[sx].end());    //sorted
+                    string tempSavestr2;
+                    while(next_permutation(candidateVec[sx].begin(),candidateVec[sx].end()))  //use next sorted set
+                    {
+                        for(vector<string>::size_type tempSavest=0; tempSavest!=candidateVec[sx].size(); tempSavest++) //tempSave... again
+                        {
+                            tempSavestr2+=candidateVec[sx][tempSavest];
+                        }
+                        count_items[tempSavestr2]=count;
+                        tempSavestr2.erase();
+                    }
+                    tempSavestr.erase();
+                }
+                cout<<"Please press Enter to continue the processing "<<endl;  //pause
+                getchar();
+                if(!freqVec.empty())
+                {
+
+                    cout<<"Frequency "<<round<<" item set is:"<<endl;
+                    for(vector<vector<string> >::size_type sx=0; sx!=freqVec.size(); ++sx)
+                    {
+                        cout.setf(ios::fixed);
+                        cout<<"{";
+                        for(vector<string>::size_type sz=0; sz!=freqVec[sx].size(); ++sz)
+                        {
+                            cout<<freqVec[sx].at(sz);
+                            tempSavestr+=freqVec[sx].at(sz);
+                        }
+                        cout<<"}";
+                        cout<<" Support is: "<<setprecision(6)<<(float)count_items[tempSavestr]/(float)OrigNumCount<<" ,confidence is :";
+
+                        ConfidenceCompute(freqVec[sx],round);
+                        cout<<endl;
+                        tempSavestr.erase();
+                    }
+                    cout<<"Press Enter to continue the processing "<<endl;  //pause
+                    getchar();
+                }
+                else
+                {
+                    cout<<"There is no frequency item set in round "<<round<<", Apriori algorithm is finished!"<<endl;
+                }
+            }
+            while(!freqVec.empty());    //if freq-item set is non-null, continue loop
+
+            cout<<"The association rules are shown as below: "<<endl;
+            for(vector<string>::size_type st=0; st!=AssRuleVec.size(); st++)
+            {
+                cout<<AssRuleVec[st]<<endl;
+            }
+            outfile<<"Print out the association rules as below:"<<endl;
+            for(vector<string>::iterator tempSaveit=AssRuleVec.begin(); tempSaveit!=AssRuleVec.end(); tempSaveit++)
+            {
+                outfile<<*tempSaveit<<endl;
+            }
+            file.close();
+            outfile.close();
+            return 0;
+        }
+        else
+        {
+            return 0;
+        }    //end of if(!freqVec.empty())
+
+    }//end of if(!file)
+}
