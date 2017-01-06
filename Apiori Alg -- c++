@@ -1,4 +1,4 @@
-//if you run it on Viso Studio, you need import some nessary lib, on Codeblocks, it run without err
+// on Codeblocks, it run without err; if you run it on Viso Studio, you need import some nessary lib,
 
 #include <iostream>
 #include <fstream>
