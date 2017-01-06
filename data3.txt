@@ -1,0 +1,20 @@
+Books MusicCD
+MusicCD Books
+Books Headphone
+Books MusicCD BabyToys
+Books MusicCD Clothes
+Books MusicCD FacialMask
+Shampoo Boots
+Books MusicCD Diapers
+Books MusicCD Racquet
+Boots Shampoo
+Books MusicCD Clothes FacialMask
+Headphone BabyToys Clothes FacialMask
+Clothes FacialMask
+Shampoo Diapers
+Racquet Boots Books MusicCD
+MusicCD Headphone Books
+BabyToys Clothes
+FacialMask Shampoo Books MusicCD
+Diapers Racquet Books MusicCD
+Boots Books
